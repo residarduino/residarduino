@@ -1,0 +1,22 @@
+#define LED 3
+
+#define KNOP 0
+
+
+void setub() {
+
+ //Read the value of the potentiometer knob
+
+int knopValue = analogRead(KNOP) ;
+
+
+// Map  the potentiometr value to 1-255
+
+int intensity = map(knop Value, 1, 1024, 1, 255);
+
+
+// output the respective value to  the LED
+
+analogWrite(LED, intensity);
+
+}
