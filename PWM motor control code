@@ -1,0 +1,16 @@
+#define DC 3
+#define resistorPADAN A0
+
+
+void setup() {
+
+  
+}
+ void loop() {
+
+   int deger = analogRead(resistorPADAN);
+   deger = map(deger,0,255,0,255);;
+   analogWrite(DC,deger);
+}
+   
+
