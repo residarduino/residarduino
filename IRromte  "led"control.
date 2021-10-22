@@ -1,0 +1,136 @@
+#include <Arduino.h>
+
+#define IR_INPUT_PIN    3
+
+/*
+ * Helper macro for getting a macro definition as string
+ */
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
+void measureTimingISR(void);
+
+void setup()
+{
+    pinMode(LED_BUILTIN, OUTPUT);
+    Serial.begin(115200);
+#if defined(AVR_ATmega32U4) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL) || defined(ARDUINO_attiny3217)
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
+#endif
+    // Just to know which program is running on my Arduino
+    Serial.println(F("START " FILE__ " from " __DATE));
+
+#if defined(EICRA) && defined(EIFR) && defined(EIMSK)
+    // enable interrupt on pin3 on both edges for ATmega328
+    EICRA |= _BV(ISC10);
+    // clear interrupt bit
+    EIFR |= 1 << INTF1;
+    // enable interrupt on next change
+    EIMSK |= 1 << INT1;
+#else
+    attachInterrupt(digitalPinToInterrupt(IR_INPUT_PIN), measureTimingISR, CHANGE);
+#endif
+    Serial.println(F("Ready to analyze NEC IR signal at pin " STR(IR_INPUT_PIN)));
+    Serial.println();
+}
+
+uint8_t ISREdgeCounter = 0;
+volatile uint32_t LastMicros;
+struct timingStruct
+{
+    uint16_t minimum;
+    uint8_t indexOfMinimum;
+    uint16_t maximum;
+    uint8_t indexOfMaximum;
+    uint16_t average;
+
+    uint16_t SumForAverage;
+    uint8_t SampleCount;
+//    uint8_t LastPrintedCount;
+};
+
+struct timingStruct Mark;
+struct timingStruct ShortSpace;
+struct timingStruct LongSpace;
+
+/*
+ * Compute minimum, maximum and average
+ */
+void processTmingValue(struct timingStruct *aTimingStruct, uint16_t aValue)
+{
+    if (aTimingStruct->SampleCount == 0)
+    {
+        // initialize values
+        aTimingStruct->minimum = 0xFFFF;
+        aTimingStruct->maximum = 0;
+        aTimingStruct->SumForAverage = 0;
+    }
+
+    if (aTimingStruct->minimum > aValue)
+    {
+        aTimingStruct->minimum = aValue;
+        aTimingStruct->indexOfMinimum = aTimingStruct->SampleCount;
+    }
+    if (aTimingStruct->maximum < aValue)
+    {
+        aTimingStruct->maximum = aValue;
+        aTimingStruct->indexOfMaximum = aTimingStruct->SampleCount;
+    }
+
+    aTimingStruct->SampleCount++;
+    aTimingStruct->SumForAverage += aValue;
+    aTimingStruct->average = (aTimingStruct->SumForAverage + (aTimingStruct->SampleCount / 2)) / aTimingStruct->SampleCount;
+
+}
+
+void printTimingValues(struct timingStruct *aTimingStruct, const char *aCaption)
+{
+//    if (aTimingStruct->LastPrintedCount != aTimingStruct->SampleCount)
+//    {
+//        aTimingStruct->LastPrintedCount = aTimingStruct->SampleCount;
+    Serial.print(aCaption);
+    Serial.print(F(": SampleCount="));
+    Serial.print(aTimingStruct->SampleCount);
+    Serial.print(F(" Minimum="));
+    Serial.print(aTimingStruct->minimum);
+    Serial.print(F(" @"));
+    Serial.print(aTimingStruct->indexOfMinimum);
+    Serial.print(F(" Maximum="));
+    Serial.print(aTimingStruct->maximum);
+    Serial.print(F(" @"));
+    Serial.print(aTimingStruct->indexOfMaximum);
+    Serial.print(F(" Delta="));
+    Serial.print(aTimingStruct->maximum - aTimingStruct->minimum);
+    Serial.print(F("   Average="));
+    Serial.print(aTimingStruct->average);
+
+    Serial.println();
+//    }
+}
+
+void loop()
+{
+    if (Mark.SampleCount >= 32)
+    {
+        /*
+         * This check enables statistics for longer protocols like Kaseikyo/Panasonics
+         */
+#if !defined(ARDUINO_ARCH_MBED)
+        noInterrupts();
+#endif
+        uint32_t tLastMicros = LastMicros;
+#if !defined(ARDUINO_ARCH_MBED)
+        interrupts();
+#endif
+        uint32_t tMicrosDelta = micros() - tLastMicros;
+
+        if (tMicrosDelta > 10000)
+        {
+            // NEC signal ended just now
+            Serial.println();
+            printTimingValues(&Mark, "Mark      ");
+            printTimingValues(&ShortSpace, "ShortSpace");
+            printTimingValues(&LongSpace, "LongSpace ");
+
+            /*
+             * Print analysis of mark an
