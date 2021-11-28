@@ -1,0 +1,14 @@
+int gnd = 9;
+int vcc = 6;
+
+void setup(){
+pinMode(gnd,OUTPUT);
+pinMode(vcc,OUTPUT);
+
+digitalWrite(GND,LOW);
+digitalWrite(VCC,HIGH);
+}
+
+void loop(){
+
+}
