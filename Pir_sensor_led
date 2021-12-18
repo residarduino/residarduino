@@ -1,0 +1,18 @@
+int led = 3;
+int pir = 9;
+int nol = 0;
+
+void setup(){
+  pinMode(led,OUTPUT);
+  pinMode(pir,INPUT);
+}
+void loop(){
+  nol = digitalRead(pir);
+ if(nol == HIGH){
+   digitalWrite(led,HIGH);
+   delay(1200);
+}
+ else{
+  digitalWrite(led,LOW);
+ }
+}
