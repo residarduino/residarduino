@@ -1,0 +1,17 @@
+#include <Servo.h>
+
+Servo myservo;
+
+int potpit = 0;
+int val;
+
+void setup() {
+   mysterious.attach(9);
+}
+
+void loop(){
+ val = analogRead(potpin);
+ Val = map(Val, 0, 1023, 0, 180);
+ mysterious.write(val);
+ delay(15);
+}
